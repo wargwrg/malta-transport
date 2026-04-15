@@ -1,15 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from './firebase';
 import './App.css';
 
 export default function App() {
+  const [buses, setBuses] = useState([]);
   const [favorites, setFavorites] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const buses = [
-    { id: 1, line: '1', name: 'Valletta - Paola', eta: 3 },
-    { id: 2, line: '2', name: 'Sliema - Mosta', eta: 8 },
-    { id: 3, line: '12', name: 'St Julians - Valletta', eta: 5 },
-    { id: 4, line: '3', name: 'Naxxar - Msida', eta: 12 },
-  ];
+  useEffect(() => {
+    const fetchBuses = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'buses'));
+        const busesData = [];
+        querySnapshot.forEach((doc) => {
+          busesData.push(doc.data());
+        });
+        setBuses(busesData.sort((a, b) => a.id - b.id));
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching buses:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchBuses();
+  }, []);
 
   const toggleFavorite = (bus) => {
     if (favorites.find(b => b.id === bus.id)) {
@@ -19,10 +35,24 @@ export default function App() {
     }
   };
 
+  if (loading) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.header}>
+          <h1 style={styles.title}>🚌 Malta Transport</h1>
+        </div>
+        <div style={styles.content}>
+          <p style={styles.loading}>Loading buses...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.container}>
       <div style={styles.header}>
         <h1 style={styles.title}>🚌 Malta Transport</h1>
+        <p style={styles.subtitle}>{buses.length} buses available</p>
       </div>
 
       <div style={styles.content}>
@@ -33,7 +63,8 @@ export default function App() {
             </div>
             <div style={styles.busDetails}>
               <p style={styles.busName}>{bus.name}</p>
-              <p style={styles.busEta}>ETA: {bus.eta} mins</p>
+              <p style={styles.busEta}>ETA: {Math.round(bus.eta)} mins</p>
+              {bus.delay > 0 && <p style={styles.delay}>⚠️ {bus.delay} min delayed</p>}
             </div>
             <button
               onClick={() => toggleFavorite(bus)}
@@ -59,13 +90,23 @@ const styles = {
     color: 'white',
   },
   title: {
-    margin: 0,
+    margin: '0 0 8px 0',
     fontSize: '28px',
+  },
+  subtitle: {
+    margin: 0,
+    fontSize: '14px',
+    opacity: 0.9,
   },
   content: {
     padding: '16px',
     maxWidth: '600px',
     margin: '0 auto',
+  },
+  loading: {
+    textAlign: 'center',
+    fontSize: '16px',
+    color: '#666',
   },
   busCard: {
     backgroundColor: 'white',
@@ -100,9 +141,15 @@ const styles = {
     fontWeight: 'bold',
   },
   busEta: {
-    margin: 0,
+    margin: '0 0 4px 0',
     fontSize: '12px',
     color: '#666',
+  },
+  delay: {
+    margin: 0,
+    fontSize: '12px',
+    color: '#D85A30',
+    fontWeight: 'bold',
   },
   heart: {
     fontSize: '24px',
