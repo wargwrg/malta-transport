@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './App.css';
+import wasaltLogo from './wasalt-icon.png';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -75,7 +76,6 @@ export default function App() {
         }
       });
 
-      // Refresh buses after 500ms
       setTimeout(async () => {
         const freshSnapshot = await getDocs(collection(db, 'buses'));
         const busesData = [];
@@ -222,7 +222,10 @@ export default function App() {
     return (
       <div style={styles.container}>
         <div style={styles.header}>
-          <h1 style={styles.title}>🚌 Wasalt</h1>
+          <div style={styles.headerContent}>
+            <img src={wasaltLogo} alt="Wasalt" style={styles.logo} />
+            <h1 style={styles.title}>Wasalt</h1>
+          </div>
         </div>
         <div style={styles.content}>
           <p style={styles.loading}>Loading buses...</p>
@@ -234,8 +237,13 @@ export default function App() {
   return (
     <div style={styles.appContainer}>
       <div style={styles.header}>
-        <h1 style={styles.title}>🚌 Wasalt</h1>
-        <p style={styles.subtitle}>Malta Transport, Reimagined</p>
+        <div style={styles.headerContent}>
+          <img src={wasaltLogo} alt="Wasalt" style={styles.logo} />
+          <div>
+            <h1 style={styles.title}>Wasalt</h1>
+            <p style={styles.subtitle}>Malta Transport, Reimagined</p>
+          </div>
+        </div>
       </div>
 
       {activeTab === 'map' && <MapView />}
@@ -316,14 +324,24 @@ const styles = {
     padding: '20px',
     color: 'white',
   },
+  headerContent: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  logo: {
+    width: '44px',
+    height: '44px',
+    borderRadius: '10px',
+  },
   title: {
-    margin: '0 0 8px 0',
+    margin: '0',
     fontSize: '28px',
     fontWeight: '700',
   },
   subtitle: {
-    margin: 0,
-    fontSize: '14px',
+    margin: '4px 0 0 0',
+    fontSize: '12px',
     opacity: 0.9,
   },
   content: {
