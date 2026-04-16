@@ -1,12 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from './firebase';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import './App.css';
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
+  iconUrl: require('leaflet/dist/images/marker-icon.png'),
+  shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
+});
+
+const BUS_COLORS = {
+  '1': '#f97316',
+  '2': '#10b981',
+  '3': '#3b82f6',
+  '12': '#f59e0b',
+};
 
 export default function App() {
   const [buses, setBuses] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('map');
+  const [selectedBus, setSelectedBus] = useState(null);
 
   useEffect(() => {
     const fetchBuses = async () => {
@@ -35,30 +54,64 @@ export default function App() {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={styles.container}>
-        <div style={styles.header}>
-          <h1 style={styles.title}>🚌 Malta Transport</h1>
-        </div>
-        <div style={styles.content}>
-          <p style={styles.loading}>Loading buses...</p>
-        </div>
-      </div>
-    );
-  }
+  const MapView = () => (
+    <div style={styles.mapContainer}>
+      <MapContainer 
+        center={[35.8989, 14.3754]} 
+        zoom={11} 
+        style={{ height: '100%', width: '100%' }}
+      >
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; OpenStreetMap contributors'
+        />
+        {buses.map(bus => (
+          <Marker 
+            key={bus.id}
+            position={[bus.latitude, bus.longitude]}
+            eventHandlers={{
+              click: () => setSelectedBus(bus),
+            }}
+          >
+            <Popup>
+              <div>
+                <strong>Line {bus.line}</strong><br/>
+                {bus.name}<br/>
+                ETA: {Math.round(bus.eta)} mins
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
 
-  return (
+      {selectedBus && (
+        <div style={styles.busDetailsCard}>
+          <div style={styles.cardHeader}>
+            <div style={{ ...styles.busLine, backgroundColor: BUS_COLORS[selectedBus.line] }}>
+              <span style={styles.busLineText}>{selectedBus.line}</span>
+            </div>
+            <button
+              onClick={() => toggleFavorite(selectedBus)}
+              style={styles.favoriteBtn}
+            >
+              {favorites.find(b => b.id === selectedBus.id) ? '❤️' : '🤍'}
+            </button>
+          </div>
+          <p style={styles.busName}>{selectedBus.name}</p>
+          <p style={styles.busEta}>ETA: {Math.round(selectedBus.eta)} mins</p>
+          {selectedBus.delay > 0 && <p style={styles.delay}>⚠️ {selectedBus.delay} min delayed</p>}
+          <button onClick={() => setSelectedBus(null)} style={styles.closeBtn}>Close</button>
+        </div>
+      )}
+    </div>
+  );
+
+  const ListView = () => (
     <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>🚌 Malta Transport</h1>
-        <p style={styles.subtitle}>{buses.length} buses available</p>
-      </div>
-
       <div style={styles.content}>
         {buses.map(bus => (
           <div key={bus.id} style={styles.busCard}>
-            <div style={styles.busLine}>
+            <div style={{ ...styles.busLine, backgroundColor: BUS_COLORS[bus.line] }}>
               <span style={styles.busLineText}>{bus.line}</span>
             </div>
             <div style={styles.busDetails}>
@@ -77,21 +130,143 @@ export default function App() {
       </div>
     </div>
   );
+
+  const TouristPage = () => (
+    <div style={styles.container}>
+      <div style={styles.content}>
+        <div style={styles.touristCard}>
+          <h2 style={styles.touristTitle}>🇲🇹 Welcome to Malta</h2>
+          <p>Explore Malta with Wasalt public transportation!</p>
+        </div>
+
+        <div style={styles.touristCard}>
+          <h3 style={styles.cardTitle}>🏛️ Popular Landmarks</h3>
+          <p><strong>Valletta</strong> - Capital city with historic sites</p>
+          <p><strong>Sliema</strong> - Beach town and shopping hub</p>
+          <p><strong>St Julians</strong> - Nightlife and restaurants</p>
+          <p><strong>Mdina</strong> - Ancient walled city</p>
+        </div>
+
+        <div style={styles.touristCard}>
+          <h3 style={styles.cardTitle}>🚌 Getting Around</h3>
+          <p>Take the bus to explore! All buses accept:</p>
+          <p>• Daily pass: €21</p>
+          <p>• 7-day pass: €26</p>
+          <p>• 12-trip carnet: €15</p>
+        </div>
+
+        <div style={styles.touristCard}>
+          <h3 style={styles.cardTitle}>ℹ️ Tips</h3>
+          <p>✓ Buy tickets at kiosks or on the bus</p>
+          <p>✓ Check bus schedules at bus stops</p>
+          <p>✓ Use Wasalt to find your route</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (loading) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.header}>
+          <h1 style={styles.title}>🚌 Wasalt</h1>
+        </div>
+        <div style={styles.content}>
+          <p style={styles.loading}>Loading buses...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.appContainer}>
+      <div style={styles.header}>
+        <h1 style={styles.title}>🚌 Wasalt</h1>
+        <p style={styles.subtitle}>Malta Transport, Reimagined</p>
+      </div>
+
+      {activeTab === 'map' && <MapView />}
+      {activeTab === 'list' && <ListView />}
+      {activeTab === 'tourist' && <TouristPage />}
+      {activeTab === 'favorites' && (
+        <div style={styles.container}>
+          <div style={styles.content}>
+            {favorites.length > 0 ? (
+              favorites.map(bus => (
+                <div key={bus.id} style={styles.busCard}>
+                  <div style={{ ...styles.busLine, backgroundColor: BUS_COLORS[bus.line] }}>
+                    <span style={styles.busLineText}>{bus.line}</span>
+                  </div>
+                  <div style={styles.busDetails}>
+                    <p style={styles.busName}>{bus.name}</p>
+                    <p style={styles.busEta}>ETA: {Math.round(bus.eta)} mins</p>
+                  </div>
+                  <button
+                    onClick={() => toggleFavorite(bus)}
+                    style={styles.heart}
+                  >
+                    ❤️
+                  </button>
+                </div>
+              ))
+            ) : (
+              <p style={styles.emptyText}>No saved routes yet</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div style={styles.tabBar}>
+        <button
+          onClick={() => setActiveTab('map')}
+          style={{ ...styles.tabBtn, ...(activeTab === 'map' && styles.tabBtnActive) }}
+        >
+          🗺️ Map
+        </button>
+        <button
+          onClick={() => setActiveTab('list')}
+          style={{ ...styles.tabBtn, ...(activeTab === 'list' && styles.tabBtnActive) }}
+        >
+          📋 List
+        </button>
+        <button
+          onClick={() => setActiveTab('tourist')}
+          style={{ ...styles.tabBtn, ...(activeTab === 'tourist' && styles.tabBtnActive) }}
+        >
+          🎫 Tourist
+        </button>
+        <button
+          onClick={() => setActiveTab('favorites')}
+          style={{ ...styles.tabBtn, ...(activeTab === 'favorites' && styles.tabBtnActive) }}
+        >
+          ❤️ Saved
+        </button>
+      </div>
+    </div>
+  );
 }
 
 const styles = {
-  container: {
-    minHeight: '100vh',
+  appContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100vh',
     backgroundColor: '#f5f5f5',
   },
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    overflow: 'auto',
+  },
   header: {
-    backgroundColor: '#0066cc',
+    background: 'linear-gradient(135deg, #0891b2 0%, #0d9488 100%)',
     padding: '20px',
     color: 'white',
   },
   title: {
     margin: '0 0 8px 0',
     fontSize: '28px',
+    fontWeight: '700',
   },
   subtitle: {
     margin: 0,
@@ -108,24 +283,43 @@ const styles = {
     fontSize: '16px',
     color: '#666',
   },
+  mapContainer: {
+    flex: 1,
+    position: 'relative',
+  },
   busCard: {
     backgroundColor: 'white',
     padding: '16px',
     marginBottom: '12px',
-    borderRadius: '8px',
+    borderRadius: '12px',
     display: 'flex',
     alignItems: 'center',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+  },
+  busDetailsCard: {
+    position: 'absolute',
+    bottom: '80px',
+    left: '16px',
+    right: '16px',
+    backgroundColor: 'white',
+    padding: '16px',
+    borderRadius: '12px',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+    zIndex: 1000,
+  },
+  cardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '12px',
   },
   busLine: {
-    backgroundColor: '#D85A30',
-    width: '50px',
-    height: '50px',
-    borderRadius: '8px',
+    width: '56px',
+    height: '56px',
+    borderRadius: '12px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: '12px',
   },
   busLineText: {
     color: 'white',
@@ -134,11 +328,13 @@ const styles = {
   },
   busDetails: {
     flex: 1,
+    marginLeft: '12px',
   },
   busName: {
     margin: '0 0 4px 0',
     fontSize: '14px',
-    fontWeight: 'bold',
+    fontWeight: '600',
+    color: '#1a1a1a',
   },
   busEta: {
     margin: '0 0 4px 0',
@@ -148,7 +344,7 @@ const styles = {
   delay: {
     margin: 0,
     fontSize: '12px',
-    color: '#D85A30',
+    color: '#ef4444',
     fontWeight: 'bold',
   },
   heart: {
@@ -157,5 +353,65 @@ const styles = {
     background: 'none',
     cursor: 'pointer',
     padding: '8px',
+  },
+  favoriteBtn: {
+    fontSize: '24px',
+    border: 'none',
+    background: 'none',
+    cursor: 'pointer',
+  },
+  closeBtn: {
+    width: '100%',
+    padding: '10px',
+    backgroundColor: '#0891b2',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    marginTop: '12px',
+    fontWeight: '600',
+  },
+  touristCard: {
+    backgroundColor: 'white',
+    padding: '16px',
+    marginBottom: '12px',
+    borderRadius: '12px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+  },
+  touristTitle: {
+    margin: '0 0 12px 0',
+    fontSize: '20px',
+    color: '#0891b2',
+  },
+  cardTitle: {
+    margin: '0 0 8px 0',
+    fontSize: '16px',
+    color: '#1a1a1a',
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#999',
+  },
+  tabBar: {
+    display: 'flex',
+    backgroundColor: 'white',
+    borderTop: '1px solid #e0e0e0',
+    padding: '8px 0',
+    boxShadow: '0 -2px 8px rgba(0,0,0,0.05)',
+  },
+  tabBtn: {
+    flex: 1,
+    padding: '12px 8px',
+    border: 'none',
+    background: 'none',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: '500',
+    color: '#666',
+    borderTop: '3px solid transparent',
+  },
+  tabBtnActive: {
+    color: '#0891b2',
+    borderTopColor: '#0891b2',
   },
 };
