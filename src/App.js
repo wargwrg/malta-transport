@@ -27,7 +27,17 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('map');
   const [selectedBus, setSelectedBus] = useState(null);
+  const [userVotes, setUserVotes] = useState({});
 
+  // Load user votes from localStorage
+  useEffect(() => {
+    const savedVotes = localStorage.getItem('wasaltVotes');
+    if (savedVotes) {
+      setUserVotes(JSON.parse(savedVotes));
+    }
+  }, []);
+
+  // Fetch buses every 10 seconds
   useEffect(() => {
     const fetchBuses = async () => {
       try {
@@ -45,6 +55,9 @@ export default function App() {
     };
 
     fetchBuses();
+    const interval = setInterval(fetchBuses, 10000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const toggleFavorite = (bus) => {
@@ -57,6 +70,29 @@ export default function App() {
 
   const reportCrowding = async (busId, level) => {
     try {
+      const voteKey = `bus_${busId}`;
+      const previousVote = userVotes[voteKey];
+
+      if (previousVote) {
+        const fieldMap = {
+          'empty': 'crowdingEmpty',
+          'normal': 'crowdingNormal',
+          'crowded': 'crowdingCrowded'
+        };
+        const previousField = fieldMap[previousVote];
+        
+        const querySnapshot = await getDocs(collection(db, 'buses'));
+        querySnapshot.forEach(async (docSnap) => {
+          if (docSnap.data().id === busId) {
+            const currentValue = docSnap.data()[previousField] || 0;
+            const busDocRef = doc(db, 'buses', docSnap.id);
+            await updateDoc(busDocRef, {
+              [previousField]: Math.max(0, currentValue - 1)
+            });
+          }
+        });
+      }
+
       const fieldMap = {
         'empty': 'crowdingEmpty',
         'normal': 'crowdingNormal',
@@ -75,6 +111,10 @@ export default function App() {
           });
         }
       });
+
+      const newVotes = { ...userVotes, [voteKey]: level };
+      setUserVotes(newVotes);
+      localStorage.setItem('wasaltVotes', JSON.stringify(newVotes));
 
       setTimeout(async () => {
         const freshSnapshot = await getDocs(collection(db, 'buses'));
@@ -167,13 +207,31 @@ export default function App() {
             <div style={styles.crowdingSection}>
               <p style={styles.crowdingLabel}>👥 How crowded?</p>
               <div style={styles.crowdingButtons}>
-                <button style={styles.crowdingBtn} onClick={() => reportCrowding(bus.id, 'empty')}>
+                <button 
+                  style={{
+                    ...styles.crowdingBtn,
+                    ...(userVotes[`bus_${bus.id}`] === 'empty' && styles.crowdingBtnActive)
+                  }} 
+                  onClick={() => reportCrowding(bus.id, 'empty')}
+                >
                   😊 Empty ({bus.crowdingEmpty || 0})
                 </button>
-                <button style={styles.crowdingBtn} onClick={() => reportCrowding(bus.id, 'normal')}>
+                <button 
+                  style={{
+                    ...styles.crowdingBtn,
+                    ...(userVotes[`bus_${bus.id}`] === 'normal' && styles.crowdingBtnActive)
+                  }} 
+                  onClick={() => reportCrowding(bus.id, 'normal')}
+                >
                   😐 Normal ({bus.crowdingNormal || 0})
                 </button>
-                <button style={styles.crowdingBtn} onClick={() => reportCrowding(bus.id, 'crowded')}>
+                <button 
+                  style={{
+                    ...styles.crowdingBtn,
+                    ...(userVotes[`bus_${bus.id}`] === 'crowded' && styles.crowdingBtnActive)
+                  }} 
+                  onClick={() => reportCrowding(bus.id, 'crowded')}
+                >
                   🚴 Crowded ({bus.crowdingCrowded || 0})
                 </button>
               </div>
@@ -494,6 +552,11 @@ const styles = {
     fontWeight: '500',
     color: '#1a1a1a',
   },
+  crowdingBtnActive: {
+    backgroundColor: '#0891b2',
+    color: 'white',
+    borderColor: '#0891b2',
+  },
   tabBar: {
     display: 'flex',
     backgroundColor: 'white',
@@ -510,10 +573,10 @@ const styles = {
     fontSize: '12px',
     fontWeight: '500',
     color: '#666',
-    borderTop: '3px solid transparent',
+    borderTop: '3px solid #e0e0e0',
   },
   tabBtnActive: {
     color: '#0891b2',
-    borderTopColor: '#0891b2',
+    borderTop: '3px solid #0891b2',
   },
 };
