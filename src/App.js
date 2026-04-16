@@ -111,18 +111,6 @@ const BUS_STOPS = {
   '52': ['Mdina Gate', 'Mdina Centre', 'Rabat Main', 'Siggiewi', 'Mtaħleb', 'Naxxar Main'],
 };
 
-const getCrowdingEmoji = (empty, normal, crowded) => {
-  const total = (empty || 0) + (normal || 0) + (crowded || 0);
-  if (total === 0) return '';
-  
-  const crowdPercent = (crowded || 0) / total;
-  const normalPercent = (normal || 0) / total;
-  
-  if (crowdPercent > 0.5) return '🚴';
-  if (normalPercent > 0.5) return '😐';
-  return '😊';
-};
-
 const generateChatResponse = (userMsg) => {
   const msg = userMsg.toLowerCase();
   
@@ -372,7 +360,6 @@ export default function App() {
       const voteKey = `bus_${busId}`;
       const previousVote = userVotes[voteKey];
 
-      // If clicking the same button again, remove the vote
       if (previousVote === level) {
         const fieldMap = {
           'empty': 'crowdingEmpty',
@@ -408,7 +395,6 @@ export default function App() {
         return;
       }
 
-      // Otherwise, change the vote
       if (previousVote) {
         const fieldMap = {
           'empty': 'crowdingEmpty',
@@ -1769,12 +1755,12 @@ const styles = {
   },
   tabBtn: {
     flex: 1,
-    minWidth: '60px',
+    minWidth: '55px',
     padding: '10px 6px',
     border: 'none',
     background: 'none',
     cursor: 'pointer',
-    fontSize: '11px',
+    fontSize: '10px',
     fontWeight: '700',
     borderTop: '2px solid transparent',
     transition: 'all 0.3s ease',
