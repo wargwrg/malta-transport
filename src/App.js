@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
@@ -51,6 +51,42 @@ export default function App() {
       setFavorites(favorites.filter(b => b.id !== bus.id));
     } else {
       setFavorites([...favorites, bus]);
+    }
+  };
+
+  const reportCrowding = async (busId, level) => {
+    try {
+      const fieldMap = {
+        'empty': 'crowdingEmpty',
+        'normal': 'crowdingNormal',
+        'crowded': 'crowdingCrowded'
+      };
+
+      const fieldName = fieldMap[level];
+      const querySnapshot = await getDocs(collection(db, 'buses'));
+      
+      querySnapshot.forEach(async (docSnap) => {
+        if (docSnap.data().id === busId) {
+          const currentValue = docSnap.data()[fieldName] || 0;
+          const busDocRef = doc(db, 'buses', docSnap.id);
+          await updateDoc(busDocRef, {
+            [fieldName]: currentValue + 1
+          });
+        }
+      });
+
+      // Refresh buses after 500ms
+      setTimeout(async () => {
+        const freshSnapshot = await getDocs(collection(db, 'buses'));
+        const busesData = [];
+        freshSnapshot.forEach((doc) => {
+          busesData.push(doc.data());
+        });
+        setBuses(busesData.sort((a, b) => a.id - b.id));
+      }, 500);
+
+    } catch (error) {
+      console.error('Error reporting crowding:', error);
     }
   };
 
@@ -110,21 +146,38 @@ export default function App() {
     <div style={styles.container}>
       <div style={styles.content}>
         {buses.map(bus => (
-          <div key={bus.id} style={styles.busCard}>
-            <div style={{ ...styles.busLine, backgroundColor: BUS_COLORS[bus.line] }}>
-              <span style={styles.busLineText}>{bus.line}</span>
+          <div key={bus.id} style={styles.busCardWrapper}>
+            <div style={styles.busCard}>
+              <div style={{ ...styles.busLine, backgroundColor: BUS_COLORS[bus.line] }}>
+                <span style={styles.busLineText}>{bus.line}</span>
+              </div>
+              <div style={styles.busDetails}>
+                <p style={styles.busName}>{bus.name}</p>
+                <p style={styles.busEta}>ETA: {Math.round(bus.eta)} mins</p>
+                {bus.delay > 0 && <p style={styles.delay}>⚠️ {bus.delay} min delayed</p>}
+              </div>
+              <button
+                onClick={() => toggleFavorite(bus)}
+                style={styles.heart}
+              >
+                {favorites.find(b => b.id === bus.id) ? '❤️' : '🤍'}
+              </button>
             </div>
-            <div style={styles.busDetails}>
-              <p style={styles.busName}>{bus.name}</p>
-              <p style={styles.busEta}>ETA: {Math.round(bus.eta)} mins</p>
-              {bus.delay > 0 && <p style={styles.delay}>⚠️ {bus.delay} min delayed</p>}
+
+            <div style={styles.crowdingSection}>
+              <p style={styles.crowdingLabel}>👥 How crowded?</p>
+              <div style={styles.crowdingButtons}>
+                <button style={styles.crowdingBtn} onClick={() => reportCrowding(bus.id, 'empty')}>
+                  😊 Empty ({bus.crowdingEmpty || 0})
+                </button>
+                <button style={styles.crowdingBtn} onClick={() => reportCrowding(bus.id, 'normal')}>
+                  😐 Normal ({bus.crowdingNormal || 0})
+                </button>
+                <button style={styles.crowdingBtn} onClick={() => reportCrowding(bus.id, 'crowded')}>
+                  🚴 Crowded ({bus.crowdingCrowded || 0})
+                </button>
+              </div>
             </div>
-            <button
-              onClick={() => toggleFavorite(bus)}
-              style={styles.heart}
-            >
-              {favorites.find(b => b.id === bus.id) ? '❤️' : '🤍'}
-            </button>
           </div>
         ))}
       </div>
@@ -287,11 +340,13 @@ const styles = {
     flex: 1,
     position: 'relative',
   },
+  busCardWrapper: {
+    marginBottom: '12px',
+  },
   busCard: {
     backgroundColor: 'white',
     padding: '16px',
-    marginBottom: '12px',
-    borderRadius: '12px',
+    borderRadius: '12px 12px 0 0',
     display: 'flex',
     alignItems: 'center',
     boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
@@ -391,6 +446,35 @@ const styles = {
   emptyText: {
     textAlign: 'center',
     color: '#999',
+  },
+  crowdingSection: {
+    backgroundColor: '#f5f5f5',
+    padding: '12px 16px',
+    borderRadius: '0 0 12px 12px',
+    borderTop: '1px solid #e0e0e0',
+  },
+  crowdingLabel: {
+    margin: '0 0 8px 0',
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#666',
+  },
+  crowdingButtons: {
+    display: 'flex',
+    gap: '8px',
+    flexWrap: 'wrap',
+  },
+  crowdingBtn: {
+    flex: 1,
+    minWidth: '80px',
+    padding: '8px',
+    backgroundColor: 'white',
+    border: '1px solid #e0e0e0',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '11px',
+    fontWeight: '500',
+    color: '#1a1a1a',
   },
   tabBar: {
     display: 'flex',
